@@ -1,0 +1,15 @@
+bower_components/
+node_modules/
+.pulp-cache/
+output/
+generated-docs/
+.cache/
+.psc-package/
+.psc*
+.purs*
+.psa*
+dist/*
+!dist/index.html
+!dist/cn-tailwind.min.css
+!dist/storybook.css
+*.lock
