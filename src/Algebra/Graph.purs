@@ -29,12 +29,12 @@ import Prelude
 
 import Algebra.Graph.AdjacencyMap as AM
 import Algebra.Graph.Internal (Focus, Hit(..), List, connectFoci, emptyFocus, fromArray, overlayFoci, toArray, vertexFocus)
-import Control.MonadPlus (class MonadPlus, class MonadZero)
+import Control.MonadPlus (class MonadPlus)
 import Control.MonadZero (class Alt, class Alternative, class Plus, guard)
 import Data.Array as Array
 import Data.Array.NonEmpty as NE
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.NonEmpty (foldl1)
+import Data.Semigroup.Foldable (foldl1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
@@ -74,8 +74,6 @@ instance plusGraph :: Plus Graph where
   empty = Empty
 
 instance alternativeGraph :: Alternative Graph
-
-instance monadZeroGraph :: MonadZero Graph
 
 instance monadPlusGraph :: MonadPlus Graph
 
