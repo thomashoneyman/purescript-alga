@@ -61,4 +61,7 @@ main = do
       it "makes a directed version of the example graph from comonad of graph decompositions" do
         adjacencyList (circuit (fromArray ['a', 'b', 'f']) `overlay` path (fromArray ['b', 'c', 'd', 'e']))
           `shouldEqual` fromArray [Tuple 'a' (fromArray ['b']), Tuple 'b' (fromArray ['c', 'f']), Tuple 'c' (fromArray ['d']), Tuple 'd' (fromArray ['e']), Tuple 'e' (fromArray []), Tuple 'f' (fromArray ['a'])]
-  log "You should add some tests."
+    describe "UndirectedGraph Char" do
+      it "makes the example graph from comonad of graph decompositions" do
+        UG.adjacencyList (UG.circuit (fromArray ['a', 'b', 'f']) `UG.overlay` UG.path (fromArray ['b', 'c', 'd', 'e']))
+          `shouldEqual` fromArray [Tuple 'a' (fromArray ['b', 'f']), Tuple 'b' (fromArray ['c', 'f']), Tuple 'c' (fromArray ['d']), Tuple 'd' (fromArray ['e']), Tuple 'e' (fromArray ['d']), Tuple 'f' (fromArray ['a', 'd'])]
