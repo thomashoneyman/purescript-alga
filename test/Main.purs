@@ -5,8 +5,8 @@ import Prelude
 import Algebra.Graph (Graph(..), adjacencyList, circuit, connect, edge, empty, overlay, path, vertex)
 import Algebra.Graph.AdjacencyMap (AdjacencyMap(..))
 import Algebra.Graph.AdjacencyMap as AM
-import Algebra.Graph.Undirected as UG
 import Algebra.Graph.Internal (fromArray)
+import Algebra.Graph.Undirected as UG
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Newtype (unwrap)
@@ -16,7 +16,7 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Console (logShow)
-import Test.Spec (describe, it)
+import Test.Spec (describe, it, itOnly)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.Spec.Runner (runSpec)
@@ -62,6 +62,11 @@ main = do
         adjacencyList (circuit (fromArray ['a', 'b', 'f']) `overlay` path (fromArray ['b', 'c', 'd', 'e']))
           `shouldEqual` fromArray [Tuple 'a' (fromArray ['b']), Tuple 'b' (fromArray ['c', 'f']), Tuple 'c' (fromArray ['d']), Tuple 'd' (fromArray ['e']), Tuple 'e' (fromArray []), Tuple 'f' (fromArray ['a'])]
     describe "UndirectedGraph Char" do
+      it "make a simple underected edge" do
+        UG.adjacencyList (UG.edge true false)
+          `shouldEqual` fromArray [Tuple false (fromArray [true]), Tuple true (fromArray [false])]
       it "makes the example graph from comonad of graph decompositions" do
-        UG.adjacencyList (UG.circuit (fromArray ['a', 'b', 'f']) `UG.overlay` UG.path (fromArray ['b', 'c', 'd', 'e']))
-          `shouldEqual` fromArray [Tuple 'a' (fromArray ['b', 'f']), Tuple 'b' (fromArray ['c', 'f']), Tuple 'c' (fromArray ['d']), Tuple 'd' (fromArray ['e']), Tuple 'e' (fromArray ['d']), Tuple 'f' (fromArray ['a', 'd'])]
+        UG.adjacencyList ( (UG.circuit (fromArray ['a', 'b', 'f']) 
+               `UG.overlay` UG.path (fromArray ['b', 'c', 'd', 'e'])) 
+               `UG.overlay` UG.edge 'f' 'd')
+            `shouldEqual` fromArray [Tuple 'a' (fromArray ['b', 'f']), Tuple 'b' (fromArray ['a', 'c', 'f']), Tuple 'c' (fromArray ['b', 'd']), Tuple 'd' (fromArray ['c', 'e', 'f']), Tuple 'e' (fromArray ['d']), Tuple 'f' (fromArray ['a', 'b', 'd'])]

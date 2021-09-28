@@ -11,7 +11,7 @@ module Algebra.Graph.Undirected (
   isSubgraphOf, (===), structuralEquality,
   -- Graph properties
   isEmpty, size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList,
-  edgeList, vertexSet, edgeSet, adjacencyList,
+  edgeList, vertexSet, edgeSet, adjacencyList, toAdjacencyMap,
   -- Standard families of graphs
   -- MISSING: tree, forest, mesh, torus, deBruijn,
   path, circuit, clique, biclique, star, stars, 
@@ -32,6 +32,7 @@ import Algebra.Graph.AdjacencyMap as AM
 import Algebra.Graph.Internal (Focus, Hit(..), List, connectFoci, emptyFocus, fromArray, overlayFoci, toArray, vertexFocus)
 import Algebra.Graph.Relation (Relation(..))
 import Algebra.Graph.Relation.Symmetric as R
+import Control.Comonad (class Comonad, class Extend)
 import Control.MonadPlus (class MonadPlus)
 import Control.MonadZero (class Alt, class Alternative, class Plus, guard)
 import Data.Array as Array
@@ -239,7 +240,7 @@ edgeSet = AM.edgeSet <<< toAdjacencyMap
 
 -- | The sorted adjacency list of a graph.
 adjacencyList :: forall a. Ord a => Graph a -> List (Tuple a (List a))
-adjacencyList = AM.adjacencyList <<< toAdjacencyMap
+adjacencyList = R.adjacencyList <<< toRelation
 
 -- | Convert a graph to 'AM.AdjacencyMap'.
 toAdjacencyMap :: forall a. Ord a => Graph a -> AM.AdjacencyMap a
@@ -400,4 +401,28 @@ context :: forall a. (a -> Boolean) -> Graph a -> Maybe (Context a)
 context p g = case focus p g of
   f | f.ok -> Just { inputs: f.is, outputs: f.os }
   _ -> Nothing
+
+type Context' a = 
+  { inputs :: List a
+  , node   :: a
+  , outputs :: List a 
+  }
+
+data FocusedGraph key
+  = FocusedGraph key (Graph key)
+derive instance functorFocusedGraph :: Functor FocusedGraph
+
+instance extendFocusedGraph :: Extend FocusedGraph where
+  extend f fg = map f (duplicate fg)
+
+duplicate :: forall a. FocusedGraph a -> FocusedGraph (FocusedGraph a)
+duplicate fg@(FocusedGraph key g) = FocusedGraph fg gg
+  where
+    gg = map (\a -> FocusedGraph a g) g
+
+instance comonadFocusedGraph :: Comonad FocusedGraph where
+  extract (FocusedGraph key _) = key
+
+data PointedGraph key
+  = PointedGraph (Context' key) (Graph key)
 

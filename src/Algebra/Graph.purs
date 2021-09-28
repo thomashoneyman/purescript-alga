@@ -29,6 +29,7 @@ import Prelude
 
 import Algebra.Graph.AdjacencyMap as AM
 import Algebra.Graph.Internal (Focus, Hit(..), List, connectFoci, emptyFocus, fromArray, overlayFoci, toArray, vertexFocus)
+import Control.Comonad (class Comonad, class Extend)
 import Control.MonadPlus (class MonadPlus)
 import Control.MonadZero (class Alt, class Alternative, class Plus, guard)
 import Data.Array as Array
@@ -86,7 +87,7 @@ empty = Empty
 vertex :: forall a. a -> Graph a
 vertex = Vertex
 
--- | Construct the graph comprising a single edge.
+-- | Construct the graph comprising a single _directed_ edge.
 edge :: forall a. a -> a -> Graph a
 edge x y = connect (vertex x) (vertex y)
 
@@ -367,3 +368,28 @@ context :: forall a. (a -> Boolean) -> Graph a -> Maybe (Context a)
 context p g = case focus p g of
   f | f.ok -> Just { inputs: f.is, outputs: f.os }
   _ -> Nothing
+
+type Context' a = 
+  { inputs :: List a
+  , node   :: a
+  , outputs :: List a 
+  }
+
+data FocusedGraph key
+  = FocusedGraph key (Graph key)
+derive instance functorFocusedGraph :: Functor FocusedGraph
+
+instance extendFocusedGraph :: Extend FocusedGraph where
+  extend f fg = map f (duplicate fg)
+
+duplicate :: forall a. FocusedGraph a -> FocusedGraph (FocusedGraph a)
+duplicate fg@(FocusedGraph key g) = FocusedGraph fg gg
+  where
+    gg = map (\a -> FocusedGraph a g) g
+
+instance comonadFocusedGraph :: Comonad FocusedGraph where
+  extract (FocusedGraph key _) = key
+
+data PointedGraph key
+  = PointedGraph (Context' key) (Graph key)
+
