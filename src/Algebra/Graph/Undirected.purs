@@ -20,16 +20,16 @@ module Algebra.Graph.Undirected (
   removeVertex, removeEdge, replaceVertex, mergeVertices, splitVertex,
   transpose, induce, simplify,
   -- Graph composition
-  compose, box,
+  compose, box
   -- Context
-  Context (..), context
+  -- Context (..), context
   ) where
 
 import Prelude
 
 import Algebra.Graph as G
-import Algebra.Graph.AdjacencyMap as AM
-import Algebra.Graph.Internal (Focus, Hit(..), List, connectFoci, emptyFocus, fromArray, overlayFoci, toArray, vertexFocus)
+import Algebra.Graph.AdjacencyMap.Undirected as AM
+import Algebra.Graph.Internal (Focus, Hit(..), List, emptyFocus, fromArray, connectFoci, overlayFoci, toArray, vertexFocus)
 import Algebra.Graph.Relation (Relation(..))
 import Algebra.Graph.Relation.Symmetric as R
 import Control.Comonad (class Comonad, class Extend)
@@ -229,6 +229,7 @@ hasEdge s t g = hit g == Edge
 vertexCount :: forall a. Ord a => Graph a -> Int
 vertexCount = Set.size <<< vertexSet
 
+-- FIXME
 -- | The number of edges in a graph.
 edgeCount :: forall a. Ord a => Graph a -> Int
 edgeCount = AM.edgeCount <<< toAdjacencyMap
@@ -306,17 +307,7 @@ removeVertex v = induce (_ /= v)
 
 -- | Remove an edge from a given graph.
 removeEdge :: forall a. Eq a => a -> a -> Graph a -> Graph a
-removeEdge s t = filterContext s (_ /= s) (_ /= t)
-
--- | Filter vertices in a subgraph context.
-filterContext :: forall a. Eq a => a -> (a -> Boolean) -> (a -> Boolean) -> Graph a -> Graph a
-filterContext s i o g = maybe g go $ context (_ == s) g
-  where
-  go { inputs, outputs } = 
-    induce (_ /= s) g 
-      `overlay` transpose (star s (fromArray $ Array.filter i $ toArray inputs))
-      `overlay` star s (fromArray $ Array.filter o $ toArray outputs)
-
+removeEdge s t (UG g) = UG $ G.removeEdge s t $ G.removeEdge t s g
 
 -- | Replaces vertex x with vertex y in a given Graph. If y already exists, 
 -- | x and y will be merged.
@@ -395,45 +386,3 @@ focus :: forall a. (a -> Boolean) -> Graph a -> Focus a
 focus f = foldg emptyFocus (vertexFocus f) overlayFoci connectFoci
 
 -- TODO: sparsify
-
--- | The Context of a subgraph comprises its inputs and outputs, i.e. all
--- the vertices that are connected to the subgraph's vertices. Note that inputs
--- and outputs can belong to the subgraph itself. In general, there are no
--- guarantees on the order of vertices in inputs and outputs; furthermore,
--- there may be repetitions.
-type Context a = 
-  { inputs :: List a
-  , outputs :: List a 
-  }
-
--- | Extract the Context of a subgraph specified by a given predicate. Returns
--- | Nothing if the specified subgraph is empty.
-context :: forall a. (a -> Boolean) -> Graph a -> Maybe (Context a)
-context p g = case focus p g of
-  f | f.ok -> Just { inputs: f.is, outputs: f.os }
-  _ -> Nothing
-
-type Context' a = 
-  { inputs :: List a
-  , node   :: a
-  , outputs :: List a 
-  }
-
-data FocusedGraph key
-  = FocusedGraph key (Graph key)
-derive instance functorFocusedGraph :: Functor FocusedGraph
-
-instance extendFocusedGraph :: Extend FocusedGraph where
-  extend f fg = map f (duplicate fg)
-
-duplicate :: forall a. FocusedGraph a -> FocusedGraph (FocusedGraph a)
-duplicate fg@(FocusedGraph key g) = FocusedGraph fg gg
-  where
-    gg = map (\a -> FocusedGraph a g) g
-
-instance comonadFocusedGraph :: Comonad FocusedGraph where
-  extract (FocusedGraph key _) = key
-
-data PointedGraph key
-  = PointedGraph (Context' key) (Graph key)
-
