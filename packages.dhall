@@ -3,7 +3,17 @@ let upstream =
 
 in  upstream
   with folds = 
-    { repo = "https://github.com/purescript-open-community/purescript-folds.git"
-    , version = "v6.3.0"
-    , dependencies = [ "control", "profunctor", "ordered-collections" ]
-    }
+      { repo = "https://github.com/purescript-open-community/purescript-folds.git"
+      , version = "v6.3.0"
+      , dependencies = [ "control", "profunctor", "ordered-collections" ]
+      }
+  with nonempty = 
+      { repo = "https://github.com/jmatsushita/purescript-nonempty.git"
+      , version = "master"
+      , dependencies = [ "control", "foldable-traversable", "maybe", "prelude", "tuples", "unfoldable" ]
+      }
+  with set-monad = 
+      { repo = "https://github.com/jmatsushita/purescript-set-monad.git"
+      , version = "master"
+      , dependencies = [ "arrays", "console", "effect", "foldable-traversable", "ordered-collections", "prelude", "psci-support", "tuples", "unsafe-coerce"]
+      }
