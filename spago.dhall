@@ -9,6 +9,7 @@
   , "effect"
   , "foldable-traversable"
   , "folds"
+  , "gen"
   , "lists"
   , "maybe"
   , "newtype"
@@ -16,7 +17,9 @@
   , "ordered-collections"
   , "prelude"
   , "psci-support"
+  , "quickcheck"
   , "spec"
+  , "spec-quickcheck"
   , "tuples"
   , "unfoldable"
   ]
