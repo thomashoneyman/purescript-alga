@@ -44,14 +44,25 @@ import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
 import Internal.Set as ISet
 import Prelude as Monad
+import Test.QuickCheck.Arbitrary (class Arbitrary, arbitrary)
 
 data Graph a = UG (G.Graph a)
+
+instance Show a => Show (Graph a) where
+  show (UG g) = case g of
+    G.Empty -> "()"
+    G.Vertex n -> show n
+    G.Connect q p -> "(" <> show (UG q) <> "<->" <> show (UG p) <> ")"
+    G.Overlay q p -> "(" <> show (UG q) <> " | " <> show (UG p) <> ")"
 
 instance eqGraph :: Ord a => Eq (Graph a) where
   eq a b = eq (toAdjacencyMap a) (toAdjacencyMap b)
 
 instance ordGraph :: Ord a => Ord (Graph a) where
   compare a b = compare (toAdjacencyMap a) (toAdjacencyMap b)
+
+instance Arbitrary a => Arbitrary (Graph a) where
+  arbitrary = UG <$> arbitrary
 
 instance functorGraph :: Functor Graph where
   map f g = g >>= (vertex <<< f) 
