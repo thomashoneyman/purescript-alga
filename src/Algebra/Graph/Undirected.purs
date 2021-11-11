@@ -1,8 +1,8 @@
 -- |
 -- | Missing: tree, forest
-module Algebra.Graph (
+module Algebra.Graph.Undirected (
   -- Algebraic data type for graphs
-  Graph (..),
+  Graph (..), fromUndirected, toUndirected,
   -- Basic graph construction primitives
   empty, vertex, edge, overlay, connect, vertices, edges, overlays, connects,
   -- Graph folding
@@ -20,25 +20,24 @@ module Algebra.Graph (
   removeVertex, removeEdge, replaceVertex, mergeVertices, splitVertex,
   transpose, induce, simplify,
   -- Graph composition
-  compose, box,
+  compose, box
   -- Context
-  Context (..), context, focus,
-  -- Gen
-  genGraph
+  -- Context (..), context
   ) where
 
-import Prelude (class Applicative, class Apply, class Bind, class Eq, class Functor, class Monad, class Ord, class Show, bind, compare, const, discard, eq, flip, map, max, min, not, otherwise, pure, show, unit, ($), (&&), (+), (-), (/=), (<$), (<$>), (<*>), (<<<), (<>), (==), (>), (>>=), (||))
+import Prelude
 
-import Algebra.Graph.AdjacencyMap as AM
-import Algebra.Graph.Internal (Focus, Hit(..), List, connectFoci, emptyFocus, fromArray, overlayFoci, toArray, vertexFocus)
-import Control.Comonad (class Extend)
-import Control.Lazy (fix)
+import Algebra.Graph as G
+import Algebra.Graph.AdjacencyMap.Undirected as AM
+import Algebra.Graph.Internal (Focus, Hit(..), List, emptyFocus, fromArray, connectFoci, overlayFoci, toArray, vertexFocus)
+import Algebra.Graph.Relation (Relation(..))
+import Algebra.Graph.Relation.Symmetric as R
+import Control.Comonad (class Comonad, class Extend)
 import Control.MonadPlus (class MonadPlus)
 import Control.MonadZero (class Alt, class Alternative, class Plus, guard)
 import Data.Array as Array
-import Data.Array.NonEmpty as NEA
+import Data.Array.NonEmpty as NE
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
-import Data.NonEmpty ((:|))
 import Data.Semigroup.Foldable (foldl1)
 import Data.Set (Set)
 import Data.Set as Set
@@ -46,93 +45,107 @@ import Data.Tuple (Tuple(..), uncurry)
 import Internal.Set as ISet
 import Prelude as Monad
 import Test.QuickCheck.Arbitrary (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (Gen, oneOf)
-import Control.Monad.Gen.Class as Gen
 
-data Graph a
-  = Empty
-  | Vertex a
-  | Overlay (Graph a) (Graph a)
-  | Connect (Graph a) (Graph a)
+data Graph a = UG (G.Graph a)
 
 instance Show a => Show (Graph a) where
-  show (Empty) = "()"
-  show (Vertex n) = show n
-  show (Connect q p) = "(" <> show q <> "-->" <> show p <> ")"
-  show (Overlay q p) = "(" <> show q <> " | " <> show p <> ")"
+  show (UG g) = case g of
+    G.Empty -> "()"
+    G.Vertex n -> show n
+    G.Connect q p -> "(" <> show (UG q) <> "<->" <> show (UG p) <> ")"
+    G.Overlay q p -> "(" <> show (UG q) <> " | " <> show (UG p) <> ")"
 
-instance Arbitrary a => Arbitrary (Graph a) where
-  arbitrary = fix genGraph
-
-genGraph :: forall a. Arbitrary a => Gen (Graph a) -> Gen (Graph a)
-genGraph gr = Gen.resize (min 5) $ Gen.sized genGraph'
-  where
-    genGraph' :: Int -> Gen (Graph a) 
-    genGraph' s
-      | s > 1 = Gen.resize (_ - 1) $ oneOf $ NEA.fromNonEmpty (v :| r gr)
-      | otherwise = v
-
-    v = Vertex <$> arbitrary
-
-    r :: Gen (Graph a) -> Array (Gen (Graph a))
-    r g = [ Connect <$> g <*> g
-        , Overlay <$> g <*> g
-        , Empty <$ g
-        ]
-    
-instance Ord a => Eq (Graph a) where
+instance eqGraph :: Ord a => Eq (Graph a) where
   eq a b = eq (toAdjacencyMap a) (toAdjacencyMap b)
 
-instance Ord a => Ord (Graph a) where
+instance ordGraph :: Ord a => Ord (Graph a) where
   compare a b = compare (toAdjacencyMap a) (toAdjacencyMap b)
-  
-instance Functor Graph where
+
+instance Arbitrary a => Arbitrary (Graph a) where
+  arbitrary = UG <$> arbitrary
+
+instance functorGraph :: Functor Graph where
   map f g = g >>= (vertex <<< f) 
 
-instance Apply Graph where
+instance applyGraph :: Apply Graph where
   apply = Monad.ap 
 
-instance Applicative Graph where 
-  pure = Vertex
+instance applicativeGraph :: Applicative Graph where 
+  pure = vertex
 
-instance Bind Graph where
-  bind g f = foldg Empty f Overlay Connect g
+instance bindGraph :: Bind Graph where
+  bind g f = foldg empty f overlay connect g
 
-instance Monad Graph
+instance monadGraph :: Monad Graph
 
-instance Alt Graph where
-  alt = Overlay
+instance altGraph :: Alt Graph where
+  alt = overlay
 
-instance Plus Graph where
-  empty = Empty
+instance plusGraph :: Plus Graph where
+  empty = empty
 
-instance Alternative Graph
+instance alternativeGraph :: Alternative Graph
 
-instance MonadPlus Graph
+instance monadPlusGraph :: MonadPlus Graph
+
+-- | Construct an undirected graph from a given "Algebra.Graph".
+-- Complexity: /O(1)/ time.
+--
+-- @
+-- toUndirected ('Algebra.Graph.edge' 1 2)         == 'edge' 1 2
+-- toUndirected . 'fromUndirected'   == id
+-- 'vertexCount' . toUndirected      == 'Algebra.Graph.vertexCount'
+-- (*2) . 'edgeCount' . toUndirected >= 'Algebra.Graph.edgeCount'
+-- @
+toUndirected :: forall a. G.Graph a -> Graph a
+toUndirected g = UG g
+
+-- | Extract the underlying "Algebra.Graph".
+-- Complexity: /O(n + m)/ time.
+--
+-- @
+-- fromUndirected ('Algebra.Graph.edge' 1 2)     == 'Algebra.Graph.edges' [(1,2),(2,1)]
+-- 'toUndirected' . 'fromUndirected' == id
+-- 'Algebra.Graph.vertexCount' . fromUndirected  == 'vertexCount'
+-- 'Algebra.Graph.edgeCount' . fromUndirected    <= (*2) . 'edgeCount'
+-- @
+fromUndirected :: forall a. Ord a => Graph a -> G.Graph a
+fromUndirected = toGraph <<< toRelation
+
+toGraph :: forall a. R.Relation a -> G.Graph a
+toGraph (R.SR (Relation r)) = G.vertices (Set.toUnfoldable $ r.domain) `G.overlay`
+                                 G.edges    (Set.toUnfoldable $ r.relation)
+
+-- TODO: This is a very inefficient implementation. Find a way to construct a
+-- symmetric relation directly, without building intermediate representations
+-- for all subgraphs.
+-- | Convert an undirected graph to a symmetric 'R.Relation'.
+toRelation :: forall a. Ord a => Graph a -> R.Relation a
+toRelation = foldg R.empty R.vertex R.overlay R.connect
 
 -- | Construct the empty graph. An alias for the constructor 'Empty'.
 empty :: forall a. Graph a
-empty = Empty
+empty = UG G.empty
 
 -- | Construct the graph comprising a single isolated vertex. An alias for the
 -- | constructor 'Vertex'.
 vertex :: forall a. a -> Graph a
-vertex = Vertex
+vertex a = UG $ G.vertex a
 
--- | Construct the graph comprising a single _directed_ edge.
+-- | Construct the graph comprising a single edge.
 edge :: forall a. a -> a -> Graph a
 edge x y = connect (vertex x) (vertex y)
 
 -- | Overlay two graphs. An alias for the constructor 'Overlay'. This is a
 -- | commutative, associative and idempotent operation with the identity 'empty'.
 overlay :: forall a. Graph a -> Graph a -> Graph a
-overlay = Overlay
+overlay (UG x) (UG y) = UG $ G.overlay x y
 
 -- | Connect two graphs. An alias for the constructor 'Connect'. This is an
 -- | associative operation with the identity 'empty', which distributes over
 -- | 'overlay' and obeys the decomposition axiom.
 connect :: forall a. Graph a -> Graph a -> Graph a
-connect = Connect
+connect (UG x) (UG y) = UG $ G.connect x y
 
 -- | Construct the graph comprising a given array of isolated vertices.
 vertices :: forall a. List a -> Graph a
@@ -144,11 +157,11 @@ edges = overlays <<< map (uncurry edge)
 
 -- | Overlay a given list of graphs.
 overlays :: forall a. List (Graph a) -> Graph a
-overlays = fromMaybe empty <<< map (foldl1 overlay <<< NEA.toNonEmpty) <<< NEA.fromArray <<< toArray
+overlays = fromMaybe empty <<< map (foldl1 overlay <<< NE.toNonEmpty) <<< NE.fromArray <<< toArray
 
 -- | Connect a given list of graphs.
 connects :: forall a. List (Graph a) -> Graph a
-connects = fromMaybe empty <<< map (foldl1 connect <<< NEA.toNonEmpty) <<< NEA.fromArray <<< toArray
+connects = fromMaybe empty <<< map (foldl1 connect <<< NE.toNonEmpty) <<< NE.fromArray <<< toArray
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- | the provided functions to the leaves and internal nodes of the expression.
@@ -157,10 +170,10 @@ foldg :: forall a b. b -> (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> Graph a 
 foldg e v o c = go
   where
   go = case _ of 
-    Empty -> e
-    Vertex x -> v x
-    Overlay x y -> o (go x) (go y)
-    Connect x y -> c (go x) (go y)
+    (UG G.Empty) -> e
+    (UG (G.Vertex x)) -> v x
+    (UG (G.Overlay x y)) -> o (go (UG x)) (go (UG y))
+    (UG (G.Connect x y)) -> c (go (UG x)) (go (UG y))
 
 -- | Returns true if the first graph is a subgraph of the second.
 isSubgraphOf :: forall a. Ord a => Graph a -> Graph a -> Boolean
@@ -174,12 +187,7 @@ isSubgraphOf x y = overlay x y == y
 -- | 1 + 2 === 2 + 1       == false
 -- | x + y === x * y       == false
 structuralEquality :: forall a. Eq a => Graph a -> Graph a -> Boolean
-structuralEquality x y = case x, y of
-  Empty, Empty -> true
-  Vertex x0, Vertex x1 -> x0 == x1
-  Overlay x0 y0, Overlay x1 y1 -> x0 === x1 && y0 === y1
-  Connect x0 y0, Connect x1 y1 -> x0 === x1 && y0 === y1
-  _, _ -> false
+structuralEquality (UG x) (UG y) = G.structuralEquality x y
 
 infix 4 structuralEquality as ===
 
@@ -206,21 +214,22 @@ hasVertex x = foldg false (_ == x) (||) (||)
 hasEdge :: forall a. Eq a => a -> a -> Graph a -> Boolean
 hasEdge s t g = hit g == Edge
   where
-  hit Empty = Miss
-  hit (Vertex x) = if x == s then Tail else Miss
-  hit (Overlay x y) = case hit x of
-    Miss -> hit y
-    Tail -> max Tail (hit y)
+  hit (UG G.Empty) = Miss
+  hit (UG (G.Vertex x)) = if x == s then Tail else Miss
+  hit (UG (G.Overlay x y)) = case hit (UG x) of
+    Miss -> hit (UG y)
+    Tail -> max Tail (hit (UG y))
     Edge -> Edge
-  hit (Connect x y) = case hit x of
-    Miss -> hit y
-    Tail -> if hasVertex t y then Edge else Tail
+  hit (UG (G.Connect x y)) = case hit (UG x) of
+    Miss -> hit (UG y)
+    Tail -> if hasVertex t (UG y) then Edge else Tail
     Edge -> Edge
 
 -- | The number of vertices in a graph
 vertexCount :: forall a. Ord a => Graph a -> Int
 vertexCount = Set.size <<< vertexSet
 
+-- FIXME
 -- | The number of edges in a graph.
 edgeCount :: forall a. Ord a => Graph a -> Int
 edgeCount = AM.edgeCount <<< toAdjacencyMap
@@ -243,7 +252,7 @@ edgeSet = AM.edgeSet <<< toAdjacencyMap
 
 -- | The sorted adjacency list of a graph.
 adjacencyList :: forall a. Ord a => Graph a -> List (Tuple a (List a))
-adjacencyList = AM.adjacencyList <<< toAdjacencyMap
+adjacencyList = R.adjacencyList <<< toRelation
 
 -- | Convert a graph to 'AM.AdjacencyMap'.
 toAdjacencyMap :: forall a. Ord a => Graph a -> AM.AdjacencyMap a
@@ -298,17 +307,7 @@ removeVertex v = induce (_ /= v)
 
 -- | Remove an edge from a given graph.
 removeEdge :: forall a. Eq a => a -> a -> Graph a -> Graph a
-removeEdge s t = filterContext s (_ /= s) (_ /= t)
-
--- | Filter vertices in a subgraph context.
-filterContext :: forall a. Eq a => a -> (a -> Boolean) -> (a -> Boolean) -> Graph a -> Graph a
-filterContext s i o g = maybe g go $ context (_ == s) g
-  where
-  go { inputs, outputs } = 
-    induce (_ /= s) g 
-      `overlay` transpose (star s (fromArray $ Array.filter i $ toArray inputs))
-      `overlay` star s (fromArray $ Array.filter o $ toArray outputs)
-
+removeEdge s t (UG g) = UG $ G.removeEdge s t $ G.removeEdge t s g
 
 -- | Replaces vertex x with vertex y in a given Graph. If y already exists, 
 -- | x and y will be merged.
@@ -325,23 +324,27 @@ splitVertex v us g = g >>= \w -> if w == v then vertices us else vertex w
 
 -- | Transpose a given graph.
 transpose :: forall a. Graph a -> Graph a
-transpose = foldg Empty Vertex Overlay (flip Connect)
+transpose = foldg empty vertex overlay (flip connect)
+
+-- foldg :: forall a b. b -> (a -> b) -> (b -> b -> b) -> (b -> b -> b) -> Graph a -> b
+-- foldg :: forall a b. Graph a -> (a -> Graph a) -> (Graph a -> Graph a -> Graph a) -> (Graph a -> Graph a -> Graph a) -> Graph a -> Graph a
 
 -- | Construct the induced subgraph of a given graph by removing the
 -- | vertices that do not satisfy a given predicate.
 induce :: forall a. (a -> Boolean) -> Graph a -> Graph a
-induce p = foldg Empty (\x -> if p x then Vertex x else Empty) (k Overlay) (k Connect)
+induce p = foldg empty (\x -> if p x then (UG (G.Vertex x)) else empty) (k G.Overlay) (k G.Connect)
   where
-  k _ x Empty = x -- Constant folding to get rid of Empty leaves
-  k _ Empty y = y
-  k f x y = f x y
+    k :: (G.Graph a -> G.Graph a -> G.Graph a) -> Graph a -> Graph a -> Graph a
+    k _ (UG x) (UG G.Empty) = (UG x) -- Constant folding to get rid of Empty leaves
+    k _ (UG G.Empty) (UG y) = (UG y)
+    k f (UG x) (UG y) = UG (f x y)
 
 -- | Simplify a graph expression. Semantically, this is the identity function,
 -- but it simplifies a given expression according to the laws of the algebra.
 -- The function does not compute the simplest possible expression,
 -- but uses heuristics to obtain useful simplifications in reasonable time.
 simplify :: forall a. Ord a => Graph a -> Graph a
-simplify = foldg Empty Vertex (simple Overlay) (simple Connect)
+simplify = foldg (UG G.Empty) (\a -> UG (G.Vertex a)) (simple overlay) (simple connect)
   where
   simple :: forall g. Eq g => (g -> g -> g) -> g -> g -> g
   simple op x y = do 
@@ -383,28 +386,3 @@ focus :: forall a. (a -> Boolean) -> Graph a -> Focus a
 focus f = foldg emptyFocus (vertexFocus f) overlayFoci connectFoci
 
 -- TODO: sparsify
-
--- | The Context of a subgraph comprises its inputs and outputs, i.e. all
--- the vertices that are connected to the subgraph's vertices. Note that inputs
--- and outputs can belong to the subgraph itself. In general, there are no
--- guarantees on the order of vertices in inputs and outputs; furthermore,
--- there may be repetitions.
-type Context a = 
-  { inputs :: List a
-  , outputs :: List a 
-  }
-
--- | Extract the Context of a subgraph specified by a given predicate. Returns
--- | Nothing if the specified subgraph is empty.
-context :: forall a. (a -> Boolean) -> Graph a -> Maybe (Context a)
-context p g = case focus p g of
-  f | f.ok -> Just { inputs: f.is, outputs: f.os }
-  _ -> Nothing
-
-instance Extend Graph where
-  extend f fg = map f (dup fg)
-    where
-      dup Empty = Empty
-      dup (Vertex _) = Vertex fg
-      dup (Connect p q) = Connect (dup p) (dup q)
-      dup (Overlay p q) = Overlay (dup p) (dup q)

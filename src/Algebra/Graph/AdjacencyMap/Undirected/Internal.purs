@@ -1,6 +1,6 @@
 -- | The 'AdjacencyMap' data type represents a graph by a map of vertices to
 -- | their adjacency sets.
-module Algebra.Graph.AdjacencyMap.Internal where
+module Algebra.Graph.AdjacencyMap.Undirected.Internal where
 
 import Prelude
 
@@ -37,7 +37,7 @@ instance ordAdjacencyMap :: Ord a => Ord (AdjacencyMap a) where
 -- instance exist? It's only in order to use (+) and (*) as is done in -alga
 instance semiringAdjacencyMap :: Ord a => Semiring (AdjacencyMap a) where
   add (AM x) (AM y) = AM $ Map.unionWith Set.union x y
-  mul (AM x) (AM y) = AM $ IMap.unionsWith Set.union [ x, y, IMap.fromSet (const $ Map.keys y) (Map.keys x) ]
+  mul (AM x) (AM y) = AM $ IMap.unionsWith Set.union [ x, y, IMap.fromSet (const $ Map.keys y) (Map.keys x), IMap.fromSet (const $ Map.keys x) (Map.keys y) ]
   zero = AM Map.empty
   one = AM Map.empty
 
