@@ -8,6 +8,7 @@ import Prelude
 import Control.MonadPlus (class MonadPlus)
 import Control.MonadZero (class Alt, class Alternative, class MonadZero, class Plus, alt)
 import Data.Array ((:))
+import Data.Array as Array
 import Data.Foldable (class Foldable, foldMap, foldr, foldl)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid.Endo (Endo(..))
@@ -81,8 +82,14 @@ instance monadZeroList :: MonadZero List
 toArray :: List ~> Array
 toArray (List (Endo f)) = f []
 
+toUnfoldable :: forall f. Unfoldable f => List ~> f
+toUnfoldable (List (Endo f)) = Array.toUnfoldable $ f []
+
 fromArray :: Array ~> List
 fromArray = List <<< Endo <<< append
+
+fromFoldable :: forall f. Foldable f => f ~> List
+fromFoldable = List <<< Endo <<< append <<< Array.fromFoldable
 
 -- | The focus of a graph expression is a flattened represenentation of the
 -- | subgraph under focus, its context, as well as the list of all encountered
