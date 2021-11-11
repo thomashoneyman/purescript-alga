@@ -20,6 +20,9 @@ newtype AdjacencyMap a = AM (Map a (Set a))
 derive instance newtypeAdjacencyMap :: Newtype (AdjacencyMap a) _
 derive instance eqAdjacencyMap :: Eq a => Eq (AdjacencyMap a)
 
+instance Show a => Show (AdjacencyMap a) where
+  show (AM m) = show m
+
 instance ordAdjacencyMap :: Ord a => Ord (AdjacencyMap a) where
   compare (AM x) (AM y) = Fold.foldl Fold.mconcat
     [ compare (Map.size x) (Map.size y) 
