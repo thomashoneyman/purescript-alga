@@ -11,7 +11,7 @@ module Algebra.Graph (
   isSubgraphOf, (===), structuralEquality,
   -- Graph properties
   isEmpty, size, hasVertex, hasEdge, vertexCount, edgeCount, vertexList,
-  edgeList, vertexSet, edgeSet, adjacencyList,
+  edgeList, vertexSet, edgeSet, adjacencyList, toAdjacencyMap,
   -- Standard families of graphs
   -- MISSING: tree, forest, mesh, torus, deBruijn,
   path, circuit, clique, biclique, star, stars, 
@@ -22,25 +22,32 @@ module Algebra.Graph (
   -- Graph composition
   compose, box,
   -- Context
-  Context (..), context
+  Context (..), context, focus,
+  -- Gen
+  genGraph
   ) where
 
-import Prelude
+import Prelude (class Applicative, class Apply, class Bind, class Eq, class Functor, class Monad, class Ord, class Show, bind, compare, const, discard, eq, flip, map, max, min, not, otherwise, pure, show, unit, ($), (&&), (+), (-), (/=), (<$), (<$>), (<*>), (<<<), (<>), (==), (>), (>>=), (||))
 
 import Algebra.Graph.AdjacencyMap as AM
 import Algebra.Graph.Internal (Focus, Hit(..), List, connectFoci, emptyFocus, fromArray, overlayFoci, toArray, vertexFocus)
-import Control.Comonad (class Comonad, class Extend)
+import Control.Comonad (class Extend)
+import Control.Lazy (fix)
 import Control.MonadPlus (class MonadPlus)
 import Control.MonadZero (class Alt, class Alternative, class Plus, guard)
 import Data.Array as Array
-import Data.Array.NonEmpty as NE
+import Data.Array.NonEmpty as NEA
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
+import Data.NonEmpty ((:|))
 import Data.Semigroup.Foldable (foldl1)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Tuple (Tuple(..), uncurry)
 import Internal.Set as ISet
 import Prelude as Monad
+import Test.QuickCheck.Arbitrary (class Arbitrary, arbitrary)
+import Test.QuickCheck.Gen (Gen, oneOf)
+import Control.Monad.Gen.Class as Gen
 
 data Graph a
   = Empty
@@ -48,35 +55,60 @@ data Graph a
   | Overlay (Graph a) (Graph a)
   | Connect (Graph a) (Graph a)
 
-instance eqGraph :: Ord a => Eq (Graph a) where
+instance Show a => Show (Graph a) where
+  show (Empty) = "()"
+  show (Vertex n) = show n
+  show (Connect q p) = "(" <> show q <> "-->" <> show p <> ")"
+  show (Overlay q p) = "(" <> show q <> " | " <> show p <> ")"
+
+instance Arbitrary a => Arbitrary (Graph a) where
+  arbitrary = fix genGraph
+
+genGraph :: forall a. Arbitrary a => Gen (Graph a) -> Gen (Graph a)
+genGraph gr = Gen.resize (min 5) $ Gen.sized genGraph'
+  where
+    genGraph' :: Int -> Gen (Graph a) 
+    genGraph' s
+      | s > 1 = Gen.resize (_ - 1) $ oneOf $ NEA.fromNonEmpty (v :| r gr)
+      | otherwise = v
+
+    v = Vertex <$> arbitrary
+
+    r :: Gen (Graph a) -> Array (Gen (Graph a))
+    r g = [ Connect <$> g <*> g
+        , Overlay <$> g <*> g
+        , Empty <$ g
+        ]
+    
+instance Ord a => Eq (Graph a) where
   eq a b = eq (toAdjacencyMap a) (toAdjacencyMap b)
 
-instance ordGraph :: Ord a => Ord (Graph a) where
+instance Ord a => Ord (Graph a) where
   compare a b = compare (toAdjacencyMap a) (toAdjacencyMap b)
-
-instance functorGraph :: Functor Graph where
+  
+instance Functor Graph where
   map f g = g >>= (vertex <<< f) 
 
-instance applyGraph :: Apply Graph where
+instance Apply Graph where
   apply = Monad.ap 
 
-instance applicativeGraph :: Applicative Graph where 
+instance Applicative Graph where 
   pure = Vertex
 
-instance bindGraph :: Bind Graph where
+instance Bind Graph where
   bind g f = foldg Empty f Overlay Connect g
 
-instance monadGraph :: Monad Graph
+instance Monad Graph
 
-instance altGraph :: Alt Graph where
+instance Alt Graph where
   alt = Overlay
 
-instance plusGraph :: Plus Graph where
+instance Plus Graph where
   empty = Empty
 
-instance alternativeGraph :: Alternative Graph
+instance Alternative Graph
 
-instance monadPlusGraph :: MonadPlus Graph
+instance MonadPlus Graph
 
 -- | Construct the empty graph. An alias for the constructor 'Empty'.
 empty :: forall a. Graph a
@@ -112,11 +144,11 @@ edges = overlays <<< map (uncurry edge)
 
 -- | Overlay a given list of graphs.
 overlays :: forall a. List (Graph a) -> Graph a
-overlays = fromMaybe empty <<< map (foldl1 overlay <<< NE.toNonEmpty) <<< NE.fromArray <<< toArray
+overlays = fromMaybe empty <<< map (foldl1 overlay <<< NEA.toNonEmpty) <<< NEA.fromArray <<< toArray
 
 -- | Connect a given list of graphs.
 connects :: forall a. List (Graph a) -> Graph a
-connects = fromMaybe empty <<< map (foldl1 connect <<< NE.toNonEmpty) <<< NE.fromArray <<< toArray
+connects = fromMaybe empty <<< map (foldl1 connect <<< NEA.toNonEmpty) <<< NEA.fromArray <<< toArray
 
 -- | Generalised 'Graph' folding: recursively collapse a 'Graph' by applying
 -- | the provided functions to the leaves and internal nodes of the expression.
@@ -369,27 +401,10 @@ context p g = case focus p g of
   f | f.ok -> Just { inputs: f.is, outputs: f.os }
   _ -> Nothing
 
-type Context' a = 
-  { inputs :: List a
-  , node   :: a
-  , outputs :: List a 
-  }
-
-data FocusedGraph key
-  = FocusedGraph key (Graph key)
-derive instance functorFocusedGraph :: Functor FocusedGraph
-
-instance extendFocusedGraph :: Extend FocusedGraph where
-  extend f fg = map f (duplicate fg)
-
-duplicate :: forall a. FocusedGraph a -> FocusedGraph (FocusedGraph a)
-duplicate fg@(FocusedGraph key g) = FocusedGraph fg gg
-  where
-    gg = map (\a -> FocusedGraph a g) g
-
-instance comonadFocusedGraph :: Comonad FocusedGraph where
-  extract (FocusedGraph key _) = key
-
-data PointedGraph key
-  = PointedGraph (Context' key) (Graph key)
-
+instance Extend Graph where
+  extend f fg = map f (dup fg)
+    where
+      dup Empty = Empty
+      dup (Vertex _) = Vertex fg
+      dup (Connect p q) = Connect (dup p) (dup q)
+      dup (Overlay p q) = Overlay (dup p) (dup q)
