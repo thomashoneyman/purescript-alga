@@ -6,7 +6,9 @@ module Algebra.Graph.Internal where
 import Prelude
 
 import Control.MonadPlus (class MonadPlus)
-import Control.MonadZero (class Alt, class Alternative, class MonadZero, class Plus, alt)
+import Control.Alt (class Alt, alt)
+import Control.Alternative(class Alternative)
+import Control.Plus (class Plus)
 import Data.Array ((:))
 import Data.Foldable (class Foldable, foldMap, foldr, foldl)
 import Data.Maybe (Maybe(..), maybe)
@@ -75,8 +77,6 @@ instance altList :: Alt List where
 instance alternativeList :: Alternative List
 
 instance monadPlusList  :: MonadPlus List
-
-instance monadZeroList :: MonadZero List
 
 toArray :: List ~> Array
 toArray (List (Endo f)) = f []

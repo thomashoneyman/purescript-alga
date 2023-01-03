@@ -26,7 +26,7 @@ import Prelude
 import Algebra.Graph.AdjacencyMap.Internal (AdjacencyMap(..))
 import Algebra.Graph.Internal (List, fromArray, toArray)
 import Control.Fold as Fold
-import Control.MonadZero (guard)
+import Control.Alternative (guard)
 import Data.Array ((:))
 import Data.Array as Array
 import Data.Foldable (foldr)
