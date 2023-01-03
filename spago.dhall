@@ -14,8 +14,6 @@
   , "open-folds"
   , "ordered-collections"
   , "prelude"
-  , "psci-support"
-  , "transformers"
   , "tuples"
   , "unfoldable"
   ]
