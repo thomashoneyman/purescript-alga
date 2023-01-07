@@ -15,7 +15,6 @@
   , "ordered-collections"
   , "prelude"
   , "psci-support"
-  , "random"
   , "transformers"
   , "tuples"
   , "unfoldable"

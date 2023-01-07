@@ -1,9 +1,9 @@
 -- | This module defines the 'AdjacencyMap' data type and associated functions.
--- | 
+-- |
 -- | Missing members:
 -- |   - tree
 -- |   - forest
-module Algebra.Graph.AdjacencyMap 
+module Algebra.Graph.AdjacencyMap
   ( -- Data structure
     module Algebra.Graph.AdjacencyMap.Internal,
     -- Basic graph construction primitives
@@ -21,7 +21,7 @@ module Algebra.Graph.AdjacencyMap
     compose, closure, reflexiveClosure, symmetricClosure, transitiveClosure
   ) where
 
-import Prelude
+import Prelude hiding (compose)
 
 import Algebra.Graph.AdjacencyMap.Internal (AdjacencyMap(..))
 import Algebra.Graph.Internal (List, fromArray, toArray)
@@ -104,7 +104,7 @@ vertexCount :: forall a. AdjacencyMap a -> Int
 vertexCount = Map.size <<< unwrap
 
 -- | The number of edges in a graph.
-edgeCount :: forall a. AdjacencyMap a -> Int 
+edgeCount :: forall a. AdjacencyMap a -> Int
 edgeCount = Fold.foldl Fold.sum <<< map Set.size <<< unwrap
 
 -- | The sorted list of vertices of a given graph.
@@ -113,8 +113,8 @@ vertexList = map fst <<< Map.toUnfoldable <<< unwrap
 
 -- | The sorted list of edges of a graph.
 edgeList :: forall a. Ord a => AdjacencyMap a -> List (Tuple a a)
-edgeList (AM m) = do 
-  Tuple x ys <- Map.toUnfoldable m 
+edgeList (AM m) = do
+  Tuple x ys <- Map.toUnfoldable m
   y <- fromArray $ ISet.toAscArray ys
   pure $ Tuple x y
 
@@ -142,11 +142,11 @@ postSet x = fromMaybe Set.empty <<< Map.lookup x <<< unwrap
 
 -- | The path on a list of vertices.
 path :: forall a. Ord a => List a -> AdjacencyMap a
-path xs = do 
-  let xs' = toArray xs 
-  case Array.uncons xs' of 
+path xs = do
+  let xs' = toArray xs
+  case Array.uncons xs' of
     Nothing -> empty
-    Just { head, tail } 
+    Just { head, tail }
       | Array.null tail -> vertex head
       | otherwise -> edges (fromArray (Array.zip xs' tail))
 
@@ -163,7 +163,7 @@ clique = fromAdjacencySets <<< fromArray <<< fst <<< go <<< toArray
   go xs = case Array.uncons xs of
     Nothing -> Tuple [] Set.empty
     Just { head, tail } -> do
-      let Tuple res set = go tail 
+      let Tuple res set = go tail
       Tuple ((Tuple head set) : res) (Set.insert head set)
 
 -- | The biclique on two lists of vertices.
@@ -176,7 +176,7 @@ biclique xs ys = AM $ IMap.fromSet adjacent (Set.union x y)
 
 -- | The star formed by a centre vertex connected to a list of leaves.
 star :: forall a. Ord a => a -> List a -> AdjacencyMap a
-star x ys 
+star x ys
   | ys == mempty = vertex x
   | otherwise = connect (vertex x) (vertices ys)
 
@@ -200,7 +200,7 @@ removeVertex x = AM <<< map (Set.delete x) <<< Map.delete x <<< unwrap
 removeEdge :: forall a. Ord a => a -> a -> AdjacencyMap a -> AdjacencyMap a
 removeEdge x y = AM <<< Map.update (Just <<< Set.delete y) x <<< unwrap
 
--- | Replaces vertex x with vertex y in a given 'AdjacencyMap'. If y already 
+-- | Replaces vertex x with vertex y in a given 'AdjacencyMap'. If y already
 -- | exists, x and y will be merged.
 replaceVertex :: forall a. Ord a => a -> a -> AdjacencyMap a -> AdjacencyMap a
 replaceVertex u v = gmap \w -> if w == u then v else w
@@ -228,7 +228,7 @@ induce p = AM <<< map (Set.filter p) <<< Map.filterWithKey (\k _ -> p k) <<< unw
 
 -- | Left-to-right relational composition of graphs: vertices x and z are
 -- | connected in the resulting graph if there is a vertex y, such that x is
--- | connected to y in the first graph, and y is connected to z in the second 
+-- | connected to y in the first graph, and y is connected to z in the second
 -- | graph. There are no isolated vertices in the result. This operation is
 -- | associative, has 'empty' and single-'vertex' graphs as annihilating zeroes,
 -- | and distributes over 'overlay'.
