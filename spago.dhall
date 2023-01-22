@@ -1,13 +1,20 @@
 { name = "alga"
 , dependencies =
-  [ "console"
+  [ "arrays"
+  , "bifunctors"
+  , "console"
+  , "control"
   , "effect"
-  , "folds"
+  , "foldable-traversable"
   , "lists"
+  , "maybe"
+  , "newtype"
+  , "nonempty"
+  , "open-folds"
   , "ordered-collections"
   , "prelude"
-  , "psci-support"
-  , "transformers"
+  , "tuples"
+  , "unfoldable"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: thomashoneyman/setup-purescript@main
+      - uses: purescript-contrib/setup-purescript@main
 
       - name: Build the project
         run: spago build
